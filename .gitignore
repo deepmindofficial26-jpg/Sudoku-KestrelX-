@@ -1,0 +1,30 @@
+# Compiled executables and object files
+*.o
+*.obj
+*.out
+/kestrelx
+/kestrelx-*
+/kestrelx-extractor
+/kestrelx-benchmark
+/extractor
+/benchmark
+/engine
+/mockbin
+
+# Generated engine/session data
+*.mem
+data_koordinat_*.txt
+data_solve_*.txt
+
+# Generated image-extractor outputs (keep source images out of the repo by default)
+*_grid.png
+*_hasil.png
+
+# Local puzzle inputs and personal test data (remove this rule if you intentionally publish samples)
+# puzzles/private/
+
+# Editor / OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
