@@ -1,4 +1,4 @@
-> **Catatan repository:** Perintah build di bawah menggunakan path sumber yang tersedia di repository ini. Sumber engine terbaru yang disertakan adalah `VersionRelease/Engine_Ver_10_6.cpp`; ini bukan pernyataan bahwa versi tersebut merupakan rilis stabil. Installer `UtilsHelper/setup_dependencies.sh` membangun OpenCV dari branch `5.x`.
+> **Repository note:** Build commands below use the source paths present in this repository. The newest engine source currently included is `VersionRelease/Engine_Ver_10_6.cpp`; this is not a declaration of a stable release. The dependency installer builds OpenCV 5, so check the actual `pkg-config` package name on your system before using the extractor command.
 
 # Panduan Penggunaan Ekosistem Sudoku Engine
 
@@ -9,44 +9,22 @@ Sistem ini terdiri dari tiga modul utama yang bekerja secara berurutan maupun ma
 
 ---
 
-## 1. Persiapan Dependensi & Kompilasi
+## 1. Persiapan & Kompilasi
 
-### 1.1 Jalankan setup dependensi terlebih dahulu (Ubuntu / Debian / WSL)
+Pastikan sistem Anda memiliki compiler C++ (mendukung C++17 atau lebih baru), library **OpenCV**, dan **Tesseract OCR**.
 
-Sebelum mengompilasi program, jalankan installer dari direktori utama repository:
-
+### Kompilasi Ketiga Modul (Linux / macOS)
 ```bash
-bash UtilsHelper/setup_dependencies.sh
-```
+# 1. Kompilasi Image Extractor (membutuhkan OpenCV)
+g++ -std=c++17 -O3 UtilsHelper/Capture_Data_From_Image.cpp -o extractor $(pkg-config --cflags --libs opencv4)
 
-Installer ini menyiapkan compiler dan tools build, membangun OpenCV dari branch `5.x`, serta memasang Tesseract OCR. Proses build OpenCV dapat memerlukan waktu lama, ruang penyimpanan cukup besar, dan RAM yang memadai.
-
-**Peringatan sebelum menjalankan installer:**
-- Script menjalankan `apt-get update/install`, menggunakan `sudo`, menginstal library ke `/usr/local`, menjalankan `ldconfig`, serta membersihkan cache paket. Tinjau isi script dan pastikan Anda menyetujui perubahan sistem tersebut.
-- Jalankan sebagai pengguna biasa, **bukan** dengan `sudo bash ...`; script meminta hak sudo ketika diperlukan.
-- Target yang dinyatakan script adalah Ubuntu/Debian/WSL. Script ini tidak diuji untuk Android/Termux atau macOS.
-- Script membangun OpenCV dari source. Jangan menganggap dependensi sudah terpasang hanya karena script pernah dijalankan; periksa hasil verifikasi dan pesan error pada terminal.
-- Nama modul `pkg-config` untuk OpenCV dapat berbeda menurut versi dan cara instalasi. Setelah instalasi, periksa dengan `pkg-config --list-all | grep -i opencv` dan gunakan nama modul yang benar ketika kompilasi.
-
-### 1.2 Kompilasi modul
-
-Lakukan langkah ini setelah installer selesai tanpa error dan compiler/dependensi sudah tersedia.
-
-```bash
-# 1. Kompilasi Image Extractor menggunakan header dan library OpenCV 5
-g++ UtilsHelper/Capture_Data_From_Image.cpp -std=c++17 -O2 \\
-  -I/usr/local/include/opencv5 -L/usr/local/lib \\
-  -lopencv_core -lopencv_imgproc -lopencv_imgcodecs -lopencv_calib3d \\
-  -o extractor
-
-# 2. Kompilasi Sudoku Engine
-g++ VersionRelease/Engine_Ver_10_6.cpp -std=c++17 -O3 -o engine
+# 2. Kompilasi Sudoku Engine (ganti nama file sumber sesuai versi yang digunakan)
+g++ -std=c++17 -O3 VersionRelease/Engine_Ver_10_6.cpp -o engine
 
 # 3. Kompilasi Benchmark System
-g++ UtilsHelper/Benchmark_Test_Engine.cpp -std=c++17 -O3 -o benchmark
+g++ -std=c++17 -O3 UtilsHelper/Benchmark_Test_Engine.cpp -o benchmark
 ```
 
-Perintah Image Extractor di atas menggunakan konfigurasi OpenCV 5 yang dicantumkan oleh installer: header pada `/usr/local/include/opencv5` dan library pada `/usr/local/lib`. Nama file sumber dan executable disesuaikan dengan struktur repository ini. Jika instalasi OpenCV 5 Anda menggunakan direktori berbeda, sesuaikan path include dan library dengan lokasi instalasi tersebut.
 ---
 
 ## 2. Modul 1: Sudoku Image Extractor (`./extractor`)
@@ -72,30 +50,9 @@ Modul ini mengubah foto atau tangkapan layar papan Sudoku menjadi string 81 digi
 * `puzzle1_grid.png`: Gambar visualisasi deteksi garis kotak dan koreksi perspektif.
 * `puzzle1_hasil.png`: Gambar hasil pembacaan OCR pada setiap sel untuk memudahkan pengecekan manual jika ada sel yang gagal terbaca (`Uncertain`).
 
-### Peringatan akurasi OCR dan pemeriksaan statistik
+### Error
 
-**Hasil ekstraksi OCR tidak otomatis dijamin benar.** Setelah proses selesai, bandingkan `puzzle1.txt` dan gambar review `puzzle1_hasil.png` dengan gambar Sudoku asli. Pastikan setiap angka berada di baris dan kolom yang benar.
-
-Jika satu atau beberapa angka hasil ekstraksi tidak sesuai dengan gambar sumber:
-
-1. Jangan langsung menggunakan file hasil tersebut untuk menyelesaikan Sudoku.
-2. Periksa `puzzle1_grid.png` untuk memastikan papan terdeteksi dan dipotong dengan benar.
-3. Periksa `puzzle1_hasil.png` untuk mencocokkan pembacaan setiap sel dengan gambar asli.
-4. Gunakan gambar sumber yang lebih jelas dan dekat: perbesar/crop bagian papan Sudoku agar memenuhi area gambar, pastikan seluruh 9×9 kotak tetap terlihat, tidak terpotong, tidak miring berlebihan, dan memiliki pencahayaan yang cukup.
-5. Jalankan kembali extractor dengan gambar yang sudah diperbaiki. Jika masih ada perbedaan, koreksi data puzzle secara manual sebelum memuatnya ke Engine.
-
-#### Cara membaca Extraction Report
-
-Laporan menampilkan `Total cells`, `Empty cells`, `Recognized`, dan `Uncertain`. Untuk satu papan Sudoku, `Total cells` seharusnya **81**, dan secara hitungan `Empty + Recognized + Uncertain` harus sama dengan 81.
-
-Perhatikan nilai yang tidak wajar, misalnya:
-- `Total cells` bukan 81;
-- `Uncertain` tinggi atau ada banyak sel yang ditandai perlu koreksi;
-- `Recognized` = 0 padahal gambar jelas berisi banyak angka;
-- hampir semua sel terbaca kosong (`Empty` mendekati 81) padahal papan sumber terisi;
-- jumlah `Recognized` atau `Empty` sangat berbeda dari perkiraan saat melihat gambar asli.
-
-Angka statistik tersebut hanya ringkasan jumlah sel, **bukan bukti bahwa OCR benar**. Bahkan jika `Uncertain` = 0, OCR masih mungkin salah mengenali angka. Selalu lakukan pemeriksaan visual dan validasi puzzle sebelum menjalankan solver.
+Terkadang ada ketidaksesuaian data hasil dengan gambar periksalah, kemungkinan penyebab utama gambar papan terlalu kecil, harap memberikan gambar papan yang besar agar mesin extract dapat membacanya  
 
 ---
 
