@@ -1,11 +1,10 @@
-# Panduan Penggunaan Ekosistem Sudoku Engine — KestrelX
+> **Repository note:** Build commands below use the source paths present in this repository. The newest engine source currently included is `VersionRelease/Engine_Ver_10_6.cpp`; this is not a declaration of a stable release. The dependency installer builds OpenCV 5, so check the actual `pkg-config` package name on your system before using the extractor command.
 
-> **Nama engine: KestrelX**  
-> KestrelX adalah nama resmi engine pemecah Sudoku dalam repositori SudoEngineProj. Versi implementasi yang dibahas dalam panduan ini berada pada lini v10.x. Sudoku Image Extractor dan Benchmark System merupakan modul pendukung ekosistem KestrelX.
+# Panduan Penggunaan Ekosistem Sudoku Engine
 
 Sistem ini terdiri dari tiga modul utama yang bekerja secara berurutan maupun mandiri:
 1. **Sudoku Image Extractor** (Ekstraksi gambar papan Sudoku menjadi data teks).
-2. **KestrelX Sudoku Engine** (Pemecah utama, kalkulasi koordinat, dan validasi solusi).
+2. **Sudoku Engine** (Pemecah utama, kalkulasi koordinat, dan validasi solusi).
 3. **Sudoku Engine Benchmark System** (Pengujian performa dan perbandingan antar versi engine).
 
 ---
@@ -17,13 +16,13 @@ Pastikan sistem Anda memiliki compiler C++ (mendukung C++17 atau lebih baru), li
 ### Kompilasi Ketiga Modul (Linux / macOS)
 ```bash
 # 1. Kompilasi Image Extractor (membutuhkan OpenCV)
-g++ -std=c++17 -O3 Extract_Image_ToData.cpp -o extractor $(pkg-config --cflags --libs opencv4)
+g++ -std=c++17 -O3 UtilsHelper/Capture_Data_From_Image.cpp -o extractor $(pkg-config --cflags --libs opencv4)
 
 # 2. Kompilasi Sudoku Engine (ganti nama file sumber sesuai versi yang digunakan)
-g++ -std=c++17 -O3 Engine.cpp -o engine
+g++ -std=c++17 -O3 VersionRelease/Engine_Ver_10_6.cpp -o engine
 
 # 3. Kompilasi Benchmark System
-g++ -std=c++17 -O3 Benchmark_engine.cpp -o benchmark
+g++ -std=c++17 -O3 UtilsHelper/Benchmark_Test_Engine.cpp -o benchmark
 ```
 
 ---
@@ -57,7 +56,7 @@ Terkadang ada ketidaksesuaian data hasil dengan gambar periksalah, kemungkinan p
 
 ---
 
-## 3. Modul 2: KestrelX Sudoku Engine (`./engine`)
+## 3. Modul 2: Sudoku Engine (`./engine`)
 
 Modul interaktif untuk memuat puzzle, memetakan kandidat dalam sistem koordinat Kartesius, memecahkan puzzle, dan mengecek keunikan solusi.
 

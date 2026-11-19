@@ -1,7 +1,4 @@
-# KestrelX Sudoku Engine (C++) — Spesifikasi & Evolusi Versi
-
-> **Nama engine: KestrelX**  
-> v10.4, v10.5, dan v10.6 adalah nomor versi implementasi KestrelX. Codename pada tabel berikut menjelaskan fokus pengembangan masing-masing versi, bukan nama engine.
+# Sudoku Engine (C++) — Spesifikasi & Evolusi Versi
 
 | Versi | Codename | Status | Karakteristik Utama |
 | :--- | :--- | :--- | :--- |

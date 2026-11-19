@@ -1,7 +1,4 @@
-# SudoEngineProj — KestrelX Engine: Spesifikasi File dan Status Pengembangan
-
-> **Nama engine: KestrelX**  
-> Dalam dokumen ini, KestrelX merujuk pada engine pemecah Sudoku C++ yang memiliki implementasi versi v10.4, v10.5, dan v10.6. SudoEngineProj adalah nama repositori/ekosistem, bukan nama engine.
+# SudoEngineProj — Spesifikasi File dan Status Pengembangan
 
 **Jenis dokumen:** Inventaris teknis repositori  
 **Status proyek:** **MASIH DALAM PENGEMBANGAN**  
@@ -9,7 +6,7 @@
 
 ## 1. Tujuan dan ruang lingkup
 
-SudoEngineProj merupakan ekosistem yang menaungi KestrelX dan menggabungkan tiga kemampuan:
+SudoEngineProj merupakan ekosistem Sudoku yang menggabungkan tiga kemampuan:
 1. ekstraksi data Sudoku dari gambar;
 2. pemecahan puzzle dengan engine C++;
 3. pengukuran dan perbandingan performa antar executable engine.
@@ -22,7 +19,7 @@ Ketiga kemampuan dapat digunakan secara berurutan: gambar diproses menjadi data 
 
 `Capture_Data_From_Image.cpp` memuat gambar, mendeteksi grid, mengoreksi perspektif papan, memproses sel, dan mengenali digit menggunakan Tesseract OCR. Hasil utamanya adalah data teks berisi 81 karakter untuk 9×9 sel. Nilai `0` digunakan untuk sel kosong. Program juga menghasilkan gambar debug agar pembacaan OCR dapat diperiksa.
 
-### 2.2 KestrelX Sudoku Engine
+### 2.2 Sudoku Engine
 
 Versi engine pada `VersionRelease/` merupakan implementasi solver yang menggunakan kandidat berbasis bitmask. Source code memuat validasi petunjuk awal, inisialisasi kandidat, teknik propagasi, pemilihan sel MRV, backtracking, statistik teknik, dan antarmuka perintah interaktif.
 
