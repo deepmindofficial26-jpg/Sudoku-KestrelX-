@@ -68,6 +68,110 @@ flowchart TD
 5. **Solve and inspect.** Run `/solve`; use the other interactive commands to inspect or validate the result.
 6. **Benchmark versions.** Run the benchmark utility with the same puzzle data and selected engine executables to compare their reported measurements.
 
+### Inside the solve process — v10.6, layer by layer
+
+The following description follows the implementation in `VersionRelease/Engine_Ver_10_6.cpp`. It describes the solver's actual sequence, not a generic Sudoku algorithm. The image extractor is outside this path: `/solve` receives the already-loaded 81-cell puzzle.
+
+```mermaid
+flowchart TD
+    A["/solve command"] --> B["Check puzzle/session and coordinate data"]
+    B --> C["Load candidate cache or initialize candidates"]
+    C --> D["Layer 1 — Incremental constraint propagation"]
+    D --> E{"Contradiction found?"}
+    E -->|Yes| X["Return dead end to caller"]
+    E -->|No| F{"All 81 cells filled?"}
+    F -->|Yes| G["Record solution"]
+    F -->|No| H["Layer 2 — MRV + degree cell selection"]
+    H --> I{"Eligible for contradiction probe?"}
+    I -->|Yes| J["Layer 3 — Temporary candidate probe"]
+    J --> K{"Candidate causes contradiction?"}
+    K -->|Yes| L["Remove disproven candidate"]
+    K -->|No| M["Keep candidate"]
+    L --> N{"Any candidate pruned?"}
+    M --> N
+    N -->|Yes| O["Re-run incremental propagation"]
+    O --> E
+    N -->|No| P["Layer 4 — LCV candidate ordering"]
+    I -->|No| P
+    P --> Q["Layer 5 — Recursive backtracking branch"]
+    Q --> R{"Branch solved?"}
+    R -->|Yes| G
+    R -->|No| S["Undo branch with trail; try next candidate"]
+    S --> T{"More candidates?"}
+    T -->|Yes| Q
+    T -->|No| X
+    G --> U["Save board, fill log and statistics"]
+```
+
+#### Layer 0 — Entry checks and candidate state
+
+When `/solve` is called, the program first checks that the puzzle is not empty and that the session's coordinate data file exists. If the coordinate data is missing, it runs the calculate step and asks the user to issue `/solve` again. The solver then uses the candidate cache when it belongs to the active session; otherwise it builds candidate masks from the current board.
+
+Each empty cell stores its possible digits in a `uint16_t` bitmask. Given digits are excluded from the masks of their 20 peer cells (cells sharing the same row, column, or 3×3 box). This compact representation makes candidate membership, removal, and candidate counting efficient.
+
+#### Layer 1 — Incremental constraint propagation
+
+`propagasiIncremental()` tries to make progress through logical deductions before guessing. It maintains unit/digit position data (UDP), a worklist of affected units (`dirtyUnits`), a separate worklist for locked-candidate checks, and queued row/column work for X-Wing. When a cell or candidate changes, only the related row, column, and box are marked for re-evaluation rather than blindly rescanning every unit.
+
+Within the affected units, the engine applies these techniques:
+
+1. **Naked Single:** if an empty cell has exactly one candidate, that digit is placed in the cell.
+2. **Hidden Single:** if a digit has only one remaining position in a row, column, or box, it is placed there. UDP tracks the candidate positions used for this check.
+3. **Naked Pair, Triple, and Quad:** when two, three, or four cells in one unit collectively contain exactly two, three, or four digits, those digits are removed from the other cells in that unit.
+4. **Locked Candidates:** pointing and claiming patterns remove a digit from cells outside the intersecting box/row/column where the pattern confines that digit.
+5. **X-Wing:** matching two-position patterns across two rows or two columns eliminate the corresponding digit from other cells in those columns or rows.
+
+Every placement or elimination updates the candidate-position data and marks affected units/patterns dirty. The worklists are processed again until no new locked-candidate or X-Wing changes remain. If an empty cell loses all candidates, or a digit has no possible position in a unit where it has not already been placed, propagation reports a contradiction. The caller then treats that search branch as a dead end.
+
+#### Layer 2 — Decision cell selection (MRV + degree)
+
+If propagation does not solve the board, `cariSelMRV()` chooses an empty cell with the **Minimum Remaining Values (MRV)** rule: prefer the cell with the fewest candidates. When cells tie on candidate count, the implementation prefers the one with the larger degree, meaning it has more unfilled peer cells. This focuses the next decision on a constrained cell that also affects many unresolved neighbours.
+
+A cell with zero candidates is immediately treated as a dead end. If the board is complete, the solver records the solution instead of making another decision.
+
+#### Layer 3 — Selective contradiction probe (v10.5, refined in v10.6)
+
+Before branching, v10.6 checks whether the selected MRV cell is eligible for a temporary look-ahead test. The gate is deliberately selective:
+
+- **2 candidates:** probe only when the cell's degree is at least 8.
+- **3 candidates:** probe only when the degree is at least 12.
+- Other candidate counts: skip this probe.
+
+For each candidate being tested, `probeContradiction()` temporarily assumes that value and performs three bounded checks:
+
+1. **Peer elimination:** remove the assumed digit from the selected cell's 20 peers and detect an empty candidate mask.
+2. **Naked Single cascade:** process newly created naked singles through a deduplicated queue (`queued[81]`), propagate their peer eliminations, and detect another empty mask.
+3. **Local unit feasibility:** check the selected cell's row, column, and box to ensure every digit not yet placed still has at least one possible location.
+
+If this temporary test finds a contradiction, the tested candidate is removed from the real candidate set. If it does not, the candidate remains available; the probe is a bounded filter, not a proof that the candidate leads to a complete solution. All temporary board and mask changes made during each probe are restored using the trail mechanism.
+
+If one or more candidates are removed, v10.6 runs incremental propagation again on the changed state and returns to the decision cycle: check completion, recompute MRV, and evaluate probe eligibility again. This re-propagation loop is an important part of the v10.6 decision cycle. If the probe removes no candidate, the solver proceeds to candidate ordering.
+
+#### Layer 4 — Candidate ordering with LCV
+
+When a branch is needed, the engine orders the selected cell's remaining candidates using **Least Constraining Value (LCV)**. `hitungEliminasiLCV()` counts how many peer cells currently contain each candidate. Candidates are tried in ascending elimination count, so the value that immediately removes fewer options from neighbouring cells is attempted first.
+
+LCV changes the order in which alternatives are explored; it does not eliminate a candidate by itself.
+
+#### Layer 5 — Recursive backtracking and rollback
+
+For each candidate in LCV order, the solver creates a branch by placing that value temporarily, removing it from the 20 peers, and recursively calling `solveCerdas()` on the resulting state. The recursive call repeats the same cycle: propagation, completion/contradiction checks, MRV selection, selective probe, LCV ordering, and deeper branching when necessary.
+
+If a branch reaches a contradiction or cannot produce a solution, the solver restores the board and candidate masks to the branch's saved trail position (`trailUndo()`), restores the step counter, and tries the next candidate. This rollback prevents deductions from a failed branch from leaking into another branch. If a branch succeeds, the first solution and its fill log are retained. The `/solve` command requests one solution; the separate `/count` path can request a bounded count of solutions.
+
+#### Final layer — Result, log, and measurements
+
+After a solution is found, `/solve` displays the solved board and writes `data_solve_<session>.txt`. The output includes the solved board, fill log, solve time, propagation/elimination/guess counts, dead-end and retry counts, technique statistics, and technique timing. These are measurements from that run; they should not be interpreted as a general speed guarantee without repeatable benchmarks on a documented puzzle set and machine.
+
+**Important scope note:** the contradiction probe is intentionally narrower than the full propagation layer. It checks peer eliminations, a bounded Naked Single cascade, and feasibility in the selected cell's three units. It does not run the complete Naked Subset / Locked Candidate / X-Wing propagation suite inside every probe. The full incremental propagation routine runs at the normal solver layer and is re-run after a successful probe prune.
+
+1. **Provide a puzzle.** Start with an image or a text file containing the puzzle data.
+2. **Extract, if needed.** The image extractor detects the board, corrects perspective, and reads the cells with OCR. Inspect the generated review image when a cell is marked uncertain or the extracted digits do not match the source.
+3. **Build an engine executable.** Choose one of the versioned C++ source files.
+4. **Load and calculate.** Use `/load` followed by `/calculate` to load the puzzle and prepare coordinate/candidate data.
+5. **Solve and inspect.** Run `/solve`; use the other interactive commands to inspect or validate the result.
+6. **Benchmark versions.** Run the benchmark utility with the same puzzle data and selected engine executables to compare their reported measurements.
+
 ## Quick start
 
 ### 1. Requirements
